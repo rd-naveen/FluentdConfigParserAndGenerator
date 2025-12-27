@@ -54,6 +54,12 @@ class Source:
         s_ += "</source>\n\n"
         
         return s_
+    
+    def update_rule_name(self, rule_name):
+        self.RuleName = rule_name
+        
+    def update_rule_tag(self, new_tag):
+        self.Tag = new_tag
 
 def get_sources(str_file):
     source_pattern = r"\#\s*(?P<rule_name>\s*[\w\s\(\)]+)\r\n(?P<rule_definition>\<source\>[\s\S]+?\<\/source\>)\r\n+" 
@@ -116,6 +122,26 @@ all_parsed_source_objects = []
 
 MANDATOR_RULE_FIELDS = ["RuleName","Tag"]
 
+any_error = False
+
+def valid_input(input_):
+    return input_ and len(input_.strip(" "))>0
+
+def toggle_parser(i):
+    global any_error
+    # print(st.session_state.get("HaveParser"+i.RuleName))
+    if st.session_state.get("HaveParser"+i.RuleName)==False:
+        i.HaveParser= False
+    else:
+        i.HaveParser = True
+        parser_name = st.session_state.get("ParserNameSelector"+i.RuleName)
+        if valid_input(parser_name):
+            i.Parser.ParserName = parser_name
+        else:
+            st.error(f"ParserName Name field should not be empty. Given: {parser_name}")
+            any_error = True
+    pass
+
 with st.expander("📂 Upload Fluentd Config File"):
     uploaded_file = st.file_uploader("Upload a .conf file", type=["conf"])
     if uploaded_file:
@@ -132,7 +158,7 @@ with st.expander("📂 Upload Fluentd Config File"):
                 with st.form(i.RuleName):
                     header = st.columns([4,5])
                     row1 = st.columns([4,5])
-                    new_rule_name  = row1[0].text_input(value=i.RuleName, label="RuleName")
+                    new_rule_name  = row1[0].text_input(value=i.RuleName, label="RuleName", key="RuleName"+i.RuleName)
                     new_tag  = row1[1].text_input(value=i.Tag, label="Tag")
                     row2 = st.columns([4,5])
                     is_emmit_onmatched  = row2[0].toggle(value=i.EmitUnmatchedLines, label="EmitUnmatchedLines")
@@ -148,27 +174,49 @@ with st.expander("📂 Upload Fluentd Config File"):
                         
                     ct2 = st.container(border=True)
                     row5 = ct2.columns([4,5])
-                    new_have_parser  = row5[0].toggle(value=i.HaveParser, label="HaveParser", key="HaveParser"+i.RuleName)
-                
+                    new_have_parser  = row5[0].toggle(value=i.HaveParser, label="HaveParser", key="HaveParser"+i.RuleName, on_change=toggle_parser(i), )
+
                     if i.HaveParser:
                         selected_parser = row5[1].selectbox(label="ParserName", options=[None,"json"], index=0, key="ParserNameSelector"+i.RuleName) 
                     
                     is_clicked =st.form_submit_button('Update data')
                     
-                    
-                    # on submit button click
+
                     if is_clicked:
-                        st.info("Fields are Updated, Please download the latest file with changes")
-                        i.RuleName = new_rule_name
-                        i.Tag = new_tag
+                        error_ = False
+                        if valid_input(new_rule_name):
+                            i.update_rule_name(new_rule_name)
+                        else:
+                            st.error(f"Rule Name field should not be empty. Given: {new_rule_name}")
+                            error_ = True
+                        
+                        if valid_input(new_tag):
+                            i.update_rule_tag(new_tag)
+                        else:
+                            st.error(f"Tag field should not be empty. Given: {new_tag}")
+                            error_ = True
+                            
                         i.EmitUnmatchedLines = is_emmit_onmatched
                         i.PathKey = new_path_key
                         if selected == "tail":
-                            i.SourceObjectType.Path = new_file_path 
-                            i.SourceObjectType.PosPath = new_pos_path
+                            if valid_input(new_file_path):
+                                i.SourceObjectType.Path = new_file_path
+                            else:
+                                st.error(f"Tail File Path should not be empty. Given: {new_file_path}")
+                                error_ = True
+                             
+                            if valid_input(new_pos_path):
+                                i.SourceObjectType.PosPath = new_pos_path
+                            else:
+                                st.error(f"Tail POS File Path should not be empty. Given: {new_pos_path}")
+                                error_ = True
+                            
                         
                         if new_have_parser:
                             i.Parser.ParserName = selected_parser
+                            
+                        if not error_ and not any_error:
+                            st.info("Fields are Updated, Please download the latest file with changes")
                             
                 with st.expander(label="RawLog"):
                     response_dict = code_editor(str(i), buttons=custom_btns)
