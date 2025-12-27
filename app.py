@@ -114,15 +114,14 @@ def parse_source_config(source_, rule_name):
 
 all_parsed_source_objects = []
 
+MANDATOR_RULE_FIELDS = ["RuleName","Tag"]
+
 with st.expander("📂 Upload Fluentd Config File"):
     uploaded_file = st.file_uploader("Upload a .conf file", type=["conf"])
     if uploaded_file:
         bytes_data = uploaded_file.getvalue()
         x = bytes_data.decode('utf-8')
-        for i in get_sources(x):
-            # st.write(i.group("rule_name"))
-            # st.write(i.group("rule_definition"))
-        
+        for i in get_sources(x):        
             all_parsed_source_objects.append(parse_source_config(i.group("rule_definition"), i.group("rule_name")))
         custom_btns = [{"name": "Copy", "hasText": True, "alwaysOn": True, "commands": ["copyAll"],
    "style": {"top": "0.46rem", "right": "0.4rem"}}]
@@ -130,7 +129,48 @@ with st.expander("📂 Upload Fluentd Config File"):
         for  i in all_parsed_source_objects:
             # st.write(str(i))
             with st.expander(i.RuleName):
-                # st.write(str(i))
-                response_dict = code_editor(str(i), buttons=custom_btns)
-                if response_dict and response_dict['id']:
-                    st.write(response_dict)
+                with st.form(i.RuleName):
+                    header = st.columns([4,5])
+                    row1 = st.columns([4,5])
+                    new_rule_name  = row1[0].text_input(value=i.RuleName, label="RuleName")
+                    new_tag  = row1[1].text_input(value=i.Tag, label="Tag")
+                    row2 = st.columns([4,5])
+                    is_emmit_onmatched  = row2[0].toggle(value=i.EmitUnmatchedLines, label="EmitUnmatchedLines")
+                    new_path_key = row2[1].text_input(value= i.PathKey, label="PathKey")
+                    if i.SourceType == "tail":
+                        ct1 = st.container(border=True)
+                        row3 =  ct1.columns([4,5])
+                        row4 =  ct1.columns([4,5])
+                        selected = row3[0].selectbox(label="Source Type", options=["tail"], index=0) 
+                        new_file_path = row3[1].text_input(value= i.SourceObjectType.Path, label="tail.path")
+                        new_pos_path = row4[1].text_input(value= i.SourceObjectType.PosPath, label="tail.pos_path")
+                    
+                        
+                    ct2 = st.container(border=True)
+                    row5 = ct2.columns([4,5])
+                    new_have_parser  = row5[0].toggle(value=i.HaveParser, label="HaveParser", key="HaveParser"+i.RuleName)
+                
+                    if i.HaveParser:
+                        selected_parser = row5[1].selectbox(label="ParserName", options=[None,"json"], index=0, key="ParserNameSelector"+i.RuleName) 
+                    
+                    is_clicked =st.form_submit_button('Update data')
+                    
+                    
+                    # on submit button click
+                    if is_clicked:
+                        st.info("Fields are Updated, Please download the latest file with changes")
+                        i.RuleName = new_rule_name
+                        i.Tag = new_tag
+                        i.EmitUnmatchedLines = is_emmit_onmatched
+                        i.PathKey = new_path_key
+                        if selected == "tail":
+                            i.SourceObjectType.Path = new_file_path 
+                            i.SourceObjectType.PosPath = new_pos_path
+                        
+                        if new_have_parser:
+                            i.Parser.ParserName = selected_parser
+                            
+                with st.expander(label="RawLog"):
+                    response_dict = code_editor(str(i), buttons=custom_btns)
+                    if response_dict and response_dict['id']:
+                        st.write(response_dict)
